@@ -1,1 +1,1 @@
-Exists z. Forall x.(!a&(b(d)&(Forall c.c)&!(D&!(Exists a.a|d))))<=>(Exists x. (f(x,x, z) -> y))
+Forall z.Exists x . Forall y. g(x, y) -> f( y, x) & z & t
