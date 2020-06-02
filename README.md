@@ -5,8 +5,8 @@ UAIC_FII_PF_FNSC
 
 Se compileaza fisierul fnsc.hs si este apelat executa executabilul cu un fisier text care contine o formula logica valida
 ```
-ghc fnsc.hs -o fnsc
-./fnsc text.txt
+ghc fnsc.hs -o proiect.exe
+./proiect.exe text.txt
 ```
 Exemplu de input:
 ```
