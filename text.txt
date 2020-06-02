@@ -1,1 +1,1 @@
-Forall z.Exists x . Forall y. g(x, y) -> f( y, x) & z & t
+Forall z.Exists x . Forall y. g(x, y) <=> f( y, x) | z & t

@@ -1,5 +1,7 @@
 import Data.Char
+import Data.List
 import System.Environment
+
 
 -- And (Var "x") (Var "y")
 -- Or (Var "x") (Var "y")
@@ -9,7 +11,14 @@ import System.Environment
 -- Forall "x" (Var "y")
 -- Not (Var "x")
 
-data Formula = Var [String]
+
+
+data Variable = Single String
+  | Func String [Variable]
+  deriving (Eq)
+
+
+data Formula = Var Variable
   | And Formula Formula
   | Or Formula Formula
   | Implies Formula Formula
@@ -19,11 +28,18 @@ data Formula = Var [String]
   | Not Formula
   deriving Eq
 
+toCommaSeparatedString :: [String] -> String
+toCommaSeparatedString = intercalate ","
+
+list_to_string :: [Variable] -> (String)
+list_to_string v = (unwords . map show) v
+
+instance Show Variable where
+  show (Single x) = {- "Var" ++ -} (show x)
+  show (Func name x) = name ++ "(" ++ (toCommaSeparatedString (map show x)) ++ ") "
 
 instance Show Formula where
-  show (Var x) = case (length x) == 1 of
-                  True -> "Var" ++ (show x)
-                  False -> "Var" ++ "{" ++ "h_" ++ (show ((length x) - 1)) ++ show (tail x) ++ "}"
+  show (Var x) = (show x)
   show (Not f) = "!" ++ (show f)
   show (And f1 f2) = "(" ++ (show f1) ++ " & " ++ (show f2) ++ ")"
   show (Or f1 f2) = "(" ++ (show f1) ++ " | " ++ (show f2) ++ ")"
@@ -34,11 +50,11 @@ instance Show Formula where
 
 
 
-
-
-data Token = TVar [String]
+data Token = TVar String 
+  | TFunc [String]
   | TLParen 
-  | TRParen 
+  | TRParen
+  | TComma 
   | TAnd 
   | TOr 
   | TNot 
@@ -49,20 +65,25 @@ data Token = TVar [String]
   | TDot
   deriving (Eq, Show)
 
+
+
+
+
+-- intoarce primul cuvant dintr-un string
+first :: String -> String
+first [] = []
+first (c : tl) | isAlphaNum c = c : (first tl)
+first _ = []
+
+-- intoarce tot ce este dupa primul cuvant
+after_first :: String -> String
+after_first [] = []
+after_first (c : tl) | isAlphaNum c = (after_first tl)
+after_first (c : tl) = c : tl
+
 -- tokenize "(a&b)"
 -- tokenize "a&(c|d)->(a<=>d)"
 -- tokenize "Exists yx . (a&(c|d)->(a<=>d))"
-
-first :: String -> String
-first [] = []
-first (c : tl) | isAlpha c = c : (first tl)
-first _ = []
-
-after_first :: String -> String
-after_first [] = []
-after_first (c : tl) | isAlpha c = (after_first tl)
-after_first (c : tl) = c : tl
-
 tokenize :: String -> [Token]
 tokenize [] = []
 tokenize ('(' : tl) = TLParen : (tokenize tl)
@@ -75,36 +96,48 @@ tokenize ('<' : '=' : '>' : tl) = TIff : (tokenize tl)
 tokenize ('E' : 'x' : 'i' : 's' : 't' : 's' : tl) = TExists : (tokenize tl)
 tokenize ('F' : 'o' : 'r' : 'a' : 'l' : 'l' : tl) = TForall : (tokenize tl)
 tokenize ('.' : tl) = TDot : (tokenize tl)
-tokenize (c : tl) | isAlpha c = (TVar [(first(c:tl))] : (tokenize (after_first(c:tl))))
+tokenize (',' : tl) = TComma : (tokenize tl)
+tokenize (c : tl) | isAlphaNum c = (TVar (first(c:tl)) : (tokenize (after_first(c:tl))))
 tokenize (c : tl) | isSpace c = tokenize tl
 tokenize _ = error "No tokenization."
 
 
-parse_form = parse_exists
--- tokenize "(!!!a)"
--- parse_form(tokenize "!a")
--- parse_form(tokenize "!a&(bd&c&!(D&!a))")
--- parse_form [TNot,TNot,TNot,TVar "x", TAnd, TVar "y", TAnd, TVar "z"]
--- parse_form [TNot,TNot,TNot,TVar "x", TAnd, TVar "y", TAnd, TVar "z", TOr, TVar "x", TOr, TVar "y"]
--- parse_form [TNot,TNot,TNot,TVar "x", TAnd, TVar "y", TImplies, TVar "z", TOr, TVar "x", TOr, TVar "y"]
--- parse_form (tokenize "(!a&(bd&c&!(D&!a)))<=>(a|b->c)")
--- parse_form (tokenize "Exists z. Exists x.(!a&(bd&c&!(D&!a)))<=>(Exists x. (x -> y))")
--- parse_form (tokenize "Forall y.Exists x.x -> y")
--- parse_form (tokenize "Exists z. Forall x.(!a&(bd&(Forall c.c)&!(D&!(Exists a.a|d))))<=>(Exists x. (x -> y))")
--- parse_form (tokenize "Exists z. Forall x.(!a&(bd&Forall c.c&!(D&!(Exists a.a|d))))<=>(Exists x. (x -> y))")
+
+-- primind o lista de tokeni, intoarce toate variabilele dintr-o functie si restul tokenilor
+-- input : "a, b, c) & x" (sub forma de tokeni)
+-- output : (["a", "b", "c"], (" & x"))
+get_function :: [Token] -> [String] -> ([String], [Token])
+get_function (TRParen : tokens) vars = (vars, tokens)
+get_function ((TVar x) : tokens) vars = get_function tokens (vars ++ [x])
+get_function (TComma : tokens) vars = get_function tokens vars
+get_function _ _ = error "No tokenization"
+
+
+-- construim din tokenii pentru variabile fie variabile, fie functii
+-- [TVar "f", TLParen, TVar "x", TComma, TVar "y", TRParen, TAnd, TVar "x"] -> [TFunc ["f", "x", "y"],  TAnd, TVar "x"]
+build_functions :: [Token] -> [Token]
+build_functions [] = []
+build_functions [token] = [token]
+build_functions (token1 : token2 : tokens) = case (token1, token2) of
+                                              (TVar x, TLParen) -> case get_function tokens [] of
+                                                                    (vars, tokens) -> (TFunc (x : vars)) : (build_functions tokens)
+                                              (y, z) -> token1 : (build_functions (token2 : tokens))
+
 
 
 get_formula :: Maybe (Formula, [Token]) -> Formula
 get_formula (Just (f, tokens)) = f           
-                   
+     
+
+parse_form = parse_exists
                    
 parse_exists :: [Token] -> Maybe (Formula, [Token])
 parse_exists (TExists : TVar var : TDot : tokens) = case parse_exists tokens of
   Nothing -> Nothing
-  Just (f, tokens') -> Just (Exists (head var) f, tokens')
+  Just (f, tokens') -> Just (Exists var f, tokens')
 parse_exists (TForall : TVar var : TDot : tokens) = case parse_exists tokens of
   Nothing -> Nothing
-  Just (f, tokens') -> Just (Forall (head var) f, tokens')
+  Just (f, tokens') -> Just (Forall var f, tokens')
 parse_exists tokens = parse_eq tokens
                    
            
@@ -156,11 +189,15 @@ parse_conjs tokens =
     r -> r
                    
                    
-                   
-                   
+-- transforma lista de String din TFunc [String] in lista de Variable din Func  [Variable]              
+tokens_to_function :: [String] -> [Variable]
+tokens_to_function [] = []
+tokens_to_function (hd : tl) = (Single hd) : (tokens_to_function tl)
+
                    
 parse_negs :: [Token] -> Maybe (Formula, [Token])
-parse_negs (TVar var : tokens) = Just (Var var, tokens)
+parse_negs (TVar var : tokens) = Just (Var (Single var), tokens)
+parse_negs (TFunc vars : tokens) = Just (Var (Func (head vars) (tokens_to_function (tail vars))), tokens)
 parse_negs (TNot : tokens) = case parse_negs tokens of
   Nothing -> Nothing
   Just (f, tokens') -> Just (Not f, tokens')
@@ -170,15 +207,9 @@ parse_negs (TLParen : tokens) = case parse_form tokens of
   Nothing -> Nothing
   Just (f, TRParen : tokens') -> Just (f, tokens')
   _ -> Nothing
-parse_                   negs _ = Nothing
-                   
-                   
-plus :: Int -> Int -> Int
-plus a b = a+b
-                   
-                   
-                   
-                   
+parse_negs _ = Nothing
+
+
                    
 iff :: Formula -> Formula
 iff (Iff f1 f2) = And (Implies f1 f2) (Implies f2 f1)
@@ -288,14 +319,22 @@ apply_deep (Var x) _ = (Var x)
                    
 
 
-f1=get_formula(parse_form (tokenize "Forall y.Exists x.x -> y"))
+f1=get_formula(parse_form (build_functions (tokenize "Forall y.Exists x.x -> y")))
 cnf_f1=cnf f1
 -- cnf (formula) -> formula in cnf
 
 
+
+-- replace dar intr-o variabile, nu formula
+replace_variable ::  String -> String ->Variable -> Variable
+replace_variable str1 str2 (Single str) = if (str == str1) then (Single str2) else (Single str)
+replace_variable str1 str2 (Func name x) = Func name (map (replace_variable str1 str2) x)
+
+
+
 -- replace (formula, str1, str2) -> formula cu toate ocurentele lui str1 transformate in str2
-replace :: Formula -> [String] -> [String] -> Formula
-replace (Var var) str1 str2 = if (var == str1) then (Var str2) else (Var var)
+replace :: Formula -> String -> String -> Formula
+replace (Var x) str1 str2 = Var (replace_variable str1 str2 x)
 replace (Not f) str1 str2 = (Not (replace f str1 str2))
 replace (Forall var f) str1 str2 = (Forall var (replace f str1 str2))
 replace (Exists var f) str1 str2 = (Exists var (replace f str1 str2))
@@ -304,7 +343,7 @@ replace (And f1 f2) str1 str2 = (And (replace f1 str1 str2) (replace f2 str1 str
 replace (Implies f1 f2) str1 str2 = (Implies (replace f1 str1 str2) (replace f2 str1 str2))
 replace (Iff f1 f2) str1 str2 = (Iff (replace f1 str1 str2) (replace f2 str1 str2))
 
-variable_1 = "substitute_"
+variable_1 = "y_"
 
 --substitute (numar) -> "substitute_numar"
 substitute :: Int -> String
@@ -319,12 +358,12 @@ rename (And f1 f2) n = And (rename f1 (n*2)) (rename f2 (n*2+1))
 rename (Or f1 f2) n = Or (rename f1 (n*2)) (rename f2 (n*2+1))
 rename (Implies f1 f2) n = Implies (rename f1 (n*2)) (rename f2 (n*2+1))
 rename (Iff f1 f2) n = Iff (rename f1 (n*2)) (rename f2 (n*2+1))
-rename (Exists var f) n = Exists (substitute n) (rename (replace f [var] [(substitute n)]) (n*2)) 
-rename (Forall var f) n = Forall (substitute n) (rename (replace f [var] [(substitute n)]) (n*2)) 
+rename (Exists var f) n = Exists (substitute n) (rename (replace f var (substitute n)) (n*2)) 
+rename (Forall var f) n = Forall (substitute n) (rename (replace f var (substitute n)) (n*2)) 
 -- Inlocuim toate aparitiile variabilei legate cu Forall cu stringul (substitute n)
 
 
-f2=get_formula(parse_form (tokenize "Exists z. Forall x.(!a&(bd&(Forall c.c)&!(D&!(Exists a.a|d))))<=>(Exists x. (x -> y))"))
+f2=get_formula(parse_form (build_functions (tokenize "Exists z. Forall x.(!a&(b(d)&(Forall c.c)&!(D&!(Exists a.a|d))))<=>(Exists x. (f(x,x, z) -> y))")))
 f2_renamed=rename f2 1
 cnf_f2_renamed=cnf f2_renamed
 
@@ -392,15 +431,26 @@ fnp = fixpoint once_fnp
 variable_2 = "x_"
 
 
+-- intoarce numele variabilelor dintr-o lista de variabile
+function_variables :: [Variable] -> [String] -> [String]
+function_variables [] vars = []
+function_variables (v : var) vars = case v of
+                                      (Single x) -> if elem x vars then 
+                                                      function_variables var vars
+                                                    else
+                                                      x : (function_variables var vars)
+                                      (Func name x) -> (function_variables x vars) ++ (function_variables var vars)
+
+-- intoarce toate noile variabile dintr-o lista de variabile
+get_new_variables :: Variable -> [String] -> [String]
+get_new_variables (Single x) vars = if elem x vars then [] else [x]
+get_new_variables (Func name x) vars = function_variables x vars
+
 -- vars_name (fnp f2_renamed) [] []
-vars_name :: Formula -> [Formula] -> [[String]] -> [[String]]
-vars_name (Var var) formulas vars = case (elem var vars) of
-                                True -> case null formulas of
-                                          True -> vars
-                                          False -> vars_name (head formulas) (tail formulas) (vars)
-                                False -> case null formulas of
-                                          True -> (var:vars)
-                                          False -> vars_name (head formulas) (tail formulas) (var:vars)
+vars_name :: Formula -> [Formula] -> [String] -> [String]
+vars_name (Var var) formulas vars = case null formulas of
+                                      True -> (get_new_variables var vars) ++ vars
+                                      False -> vars_name (head formulas) (tail formulas) ((get_new_variables var vars) ++ vars)
 vars_name (Not f) fs vars = vars_name f fs vars
 vars_name (And f1 f2) fs vars = vars_name f1 (f2:fs) vars
 vars_name (Or f1 f2) fs vars = vars_name f1 (f2:fs) vars
@@ -409,44 +459,70 @@ vars_name (Forall var f) fs vars = vars_name f fs vars
 
 
 -- binded_vars (fnp f2_renamed)
-binded_vars :: Formula -> [[String]]
-binded_vars (Exists var f) = [var] : (binded_vars f)
-binded_vars (Forall var f) = [var] : (binded_vars f)
+binded_vars :: Formula -> [String]
+binded_vars (Exists var f) = var : (binded_vars f)
+binded_vars (Forall var f) = var : (binded_vars f)
 binded_vars _ = []
 
 -- free (all variables) (binded variables) -> (all -- binded) variables
 -- free (vars_name (fnp f2_renamed) [] []) (binded_vars (fnp f2_renamed)) []
-free :: [[String]] -> [[String]] -> [[String]] -> [[String]]
+free :: [String] -> [String] -> [String] -> [String]
 free [] binded free_vars = free_vars
-free (v:vars) binded free_vars = case elem v binded of
-                                  True -> (free vars binded free_vars)
-                                  False -> (free vars binded (v:free_vars))
+free (v : vars) binded free_vars = case elem v binded of
+                                    True -> (free vars binded free_vars)
+                                    False -> (free vars binded (v:free_vars))
 
 
 
 -- close (fnp f2_renamed) (free (vars_name (fnp f2_renamed) [] []) (binded_vars (fnp f2_renamed)) [])
 -- close (formula, string) | formula e in fnp -> formula in fnp inchisa existential
-close :: Formula -> [[String]] -> Formula
+close :: Formula -> [String] -> Formula
 close f [] = f
-close f (v:vars) = Exists (head v) $ close f vars
+close f (v : vars) = Exists v $ close f vars
 
 close_f2=close (fnp f2_renamed) (free (vars_name (fnp f2_renamed) [] []) (binded_vars (fnp f2_renamed)) [])
 
-f3=rename(get_formula(parse_form(tokenize "Forall x. Forall y. Exists z. z"))) 1
+f3=rename(get_formula(parse_form (build_functions (tokenize "Forall x. Forall y. Exists z. z")))) 1
 close_f3 = close (fnp f3) (free (vars_name (fnp f3) [] []) (binded_vars (fnp f3)) [])
 
 
--- fns close_f2 ["f"]
--- fns close_f3 ["f"]
-fns :: Formula -> [String] -> Formula
-fns (Forall var f) vars = Forall var (fns f (var : vars))
-fns (Exists var f) vars = case null vars of
-                            True -> fns f vars
-                            False -> fns (replace f [var] (reverse vars)) vars
-fns f vars = f
+-- face replace la toate variabilele legate existential care sunt intr-o functie
+replace_existential :: Variable -> String -> Variable -> Variable
+replace_existential var str (Single x) = if (x == str) then (var) else (Single x)
+replace_existential var str (Func name x)= Func name (map (replace_existential var str) x)
 
-fnsc2 = fnsc (fns close_f2 ["f"])
-fnsc3 = fnsc (fns close_f3 ["f"])
+
+-- aplica procesul de skolemizare, inlocuind toate variabilele legate existential cu o functie in functie de variabilele Forall
+skolemize :: Formula -> String -> Variable -> Formula
+skolemize (Forall x f) str var = Forall x (skolemize f str var)
+skolemize (Exists x f) str var = Exists x (skolemize f str var)
+skolemize (Or f1 f2) str var = Or (skolemize f1 str var) (skolemize f2 str var)
+skolemize (And f1 f2) str var = And (skolemize f1 str var) (skolemize f2 str var)
+skolemize (Implies f1 f2) str var = Implies (skolemize f1 str var) (skolemize f2 str var)
+skolemize (Iff f1 f2) str var = Iff (skolemize f1 str var) (skolemize f2 str var)
+skolemize (Var v) str var = Var (replace_existential var str v)
+skolemize (Not f) str var = Not (skolemize f str var)
+
+
+
+function_name :: [Variable] -> String
+function_name vars = "f" ++ (show (length vars)) ++ "'"
+ 
+-- fns close_f2 (Func [])
+-- fns (formula inchisa prenex) (variabila libera) -> formula in fns
+fns :: Formula -> Variable -> Formula
+fns (Forall x f) variable = case variable of
+                              (Func name []) -> Forall x (fns f (Func name [(Single x)]))
+                              (Func name a)  -> Forall x (fns f (Func name ((Single x) : a)))
+fns (Exists x f) variable = case variable of
+                                (Func name []) -> fns (skolemize f x (Func "f1'" [(Single x)])) variable
+                                (Func name a) -> fns (skolemize f x (Func (function_name a) a)) variable
+fns f variable = f
+
+
+
+fnsc2 = fnsc (fns close_f2 (Func "a" []))
+fnsc3 = fnsc (fns close_f3 (Func "a" []))
 
 fnsc :: Formula -> Formula
 fnsc (Forall var f) = Forall var $ fnsc f
@@ -460,43 +536,99 @@ main :: IO()
 main = do
   args <- getArgs
   file_content <- readFile $ head args
-  let tokens = tokenize file_content
-  putStrLn "Tokenization: "
-  putStrLn $ show tokens
   putStrLn ""
-  let parsed_formula = get_formula $ parse_form tokens
+  putStrLn "============================================================="
+  putStrLn "Input string: "
+  putStrLn "============================================================="
+  putStrLn file_content
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
+  putStrLn ""
+  let tokens = tokenize file_content
+  putStrLn "============================================================="
+  putStrLn "Tokenization: "
+  putStrLn "============================================================="
+  putStrLn $ show tokens
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
+  putStrLn ""
+  let parsed_formula = get_formula $ parse_form $ build_functions tokens
+  putStrLn "============================================================="
   putStrLn "Parsed Formula: "
+  putStrLn "============================================================="
   putStrLn $ show parsed_formula
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let renamed_formula = rename parsed_formula 1
+  putStrLn "============================================================="
   putStrLn "Renamed Formula: "
+  putStrLn "============================================================="
   putStrLn $ show renamed_formula
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let fnp_formula = fnp renamed_formula
+  putStrLn "============================================================="
   putStrLn "Formula in fnp"
+  putStrLn "============================================================="
   putStrLn $ show fnp_formula
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let all_variables = vars_name fnp_formula [] []
-  putStrLn "All variable in formula"
+  putStrLn "============================================================="
+  putStrLn "All variables in formula"
+  putStrLn "============================================================="
   putStrLn $ show all_variables
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let binded_variables = binded_vars fnp_formula
+  putStrLn "============================================================="
   putStrLn "All binded variables in formula"
+  putStrLn "============================================================="
   putStrLn $ show binded_variables
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let free_variables = free all_variables binded_variables []
+  putStrLn "============================================================="
   putStrLn "All free variables in formula"
+  putStrLn "============================================================="
   putStrLn $ show free_variables
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let closed_formula = close fnp_formula free_variables
+  putStrLn "============================================================="
   putStrLn "Closed fnp formula"
+  putStrLn "============================================================="
   putStrLn $ show closed_formula
+  putStrLn "============================================================="
   putStrLn ""
-  let fns_formula = fns closed_formula ["f"]
+  putStrLn ""
+  putStrLn ""
+  let fns_formula = fns closed_formula (Func "a" [])
+  putStrLn "============================================================="
   putStrLn "fns formula"
+  putStrLn "============================================================="
   putStrLn $ show fns_formula
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let fnsc_formula = fnsc fns_formula
+  putStrLn "============================================================="
   putStrLn "fnsc formula"
+  putStrLn "============================================================="
   putStrLn $ show fnsc_formula
-  putStrLn ""
+  putStrLn "============================================================="
