@@ -21,3 +21,6 @@ Se parseaza sirul de caractere citit din fisier si se transforma intr-o formula 
   * inchiderea existentiala a formulei
   * aducerea in FNS
   * transformarea formulei in FNSC
+
+
+In *varianta.hs* se afla o varianta anterioara a proiectului.
