@@ -632,3 +632,6 @@ main = do
   putStrLn "============================================================="
   putStrLn $ show fnsc_formula
   putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
+  putStrLn ""
