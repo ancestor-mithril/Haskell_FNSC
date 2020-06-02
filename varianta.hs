@@ -343,7 +343,7 @@ replace (And f1 f2) str1 str2 = (And (replace f1 str1 str2) (replace f2 str1 str
 replace (Implies f1 f2) str1 str2 = (Implies (replace f1 str1 str2) (replace f2 str1 str2))
 replace (Iff f1 f2) str1 str2 = (Iff (replace f1 str1 str2) (replace f2 str1 str2))
 
-variable_1 = "substitute_"
+variable_1 = "y_"
 
 --substitute (numar) -> "substitute_numar"
 substitute :: Int -> String
@@ -541,64 +541,94 @@ main = do
   putStrLn "Input string: "
   putStrLn "============================================================="
   putStrLn file_content
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let tokens = tokenize file_content
   putStrLn "============================================================="
   putStrLn "Tokenization: "
   putStrLn "============================================================="
   putStrLn $ show tokens
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let parsed_formula = get_formula $ parse_form $ build_functions tokens
   putStrLn "============================================================="
   putStrLn "Parsed Formula: "
   putStrLn "============================================================="
   putStrLn $ show parsed_formula
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let renamed_formula = rename parsed_formula 1
   putStrLn "============================================================="
   putStrLn "Renamed Formula: "
   putStrLn "============================================================="
   putStrLn $ show renamed_formula
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let fnp_formula = fnp renamed_formula
   putStrLn "============================================================="
   putStrLn "Formula in fnp"
   putStrLn "============================================================="
   putStrLn $ show fnp_formula
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let all_variables = vars_name fnp_formula [] []
   putStrLn "============================================================="
   putStrLn "All variables in formula"
   putStrLn "============================================================="
   putStrLn $ show all_variables
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let binded_variables = binded_vars fnp_formula
   putStrLn "============================================================="
   putStrLn "All binded variables in formula"
   putStrLn "============================================================="
   putStrLn $ show binded_variables
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let free_variables = free all_variables binded_variables []
   putStrLn "============================================================="
   putStrLn "All free variables in formula"
   putStrLn "============================================================="
   putStrLn $ show free_variables
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let closed_formula = close fnp_formula free_variables
   putStrLn "============================================================="
   putStrLn "Closed fnp formula"
   putStrLn "============================================================="
   putStrLn $ show closed_formula
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let fns_formula = fns closed_formula (Func "a" [])
   putStrLn "============================================================="
   putStrLn "fns formula"
   putStrLn "============================================================="
   putStrLn $ show fns_formula
+  putStrLn "============================================================="
+  putStrLn ""
+  putStrLn ""
   putStrLn ""
   let fnsc_formula = fnsc fns_formula
   putStrLn "============================================================="
   putStrLn "fnsc formula"
   putStrLn "============================================================="
   putStrLn $ show fnsc_formula
-  putStrLn ""
+  putStrLn "============================================================="
