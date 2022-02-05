@@ -2,6 +2,7 @@
 UAIC_FII_PF_FNSC
 
 * My project for the Functional Programing course at UAIC FII
+* bachelor degree, 2nd year, 2nd semester
 * Transformes a logical formula into it's Clausal Skolem normal form
 
 ## Usage
